@@ -19,6 +19,7 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
   late final Animation<double> _diceScale = CurvedAnimation(parent: _diceController, curve: Curves.elasticOut);
   bool _showDice = false;
   int? _diceNumber;
+  bool _diceRolling = false;
   // Special overlay state (profesor / matón)
   bool _showSpecialOverlay = false;
   String? _specialMessage;
@@ -507,18 +508,13 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
       }
     }
     if (appliedToShow <= 0) appliedToShow = 1; // ensure positive display
-    _diceNumber = appliedToShow;
+    _diceNumber = 1; // start visible sequence at 1
     setState(() { _showDice = true; });
     try {
-      _diceController.reset();
-      await _diceController.forward();
-      await Future.delayed(const Duration(milliseconds: 900));
-      await _diceController.reverse();
+      await _playDiceRollAnimation(appliedToShow);
     } catch (_) {}
     if (!mounted) return;
-    setState(() {
-      _showDice = false;
-    });
+    setState(() { _showDice = false; });
 
     // After the dice animation, show any special overlays when landing on a profesor/ matón
     try {
@@ -555,6 +551,39 @@ class _GameBoardPageState extends State<GameBoardPage> with TickerProviderStateM
     } else if (ctrl.game != null) {
       // schedule refresh without awaiting to avoid blocking UI during navigation
       Future.microtask(() => ctrl.loadGame(ctrl.game!.id));
+    }
+  }
+
+  /// Play a dice roll sequence that cycles quickly through 1..6 and stops
+  /// on [finalNumber]. This uses small delays that progressively slow down
+  /// so the roll feels natural and always ends on the correct face.
+  Future<void> _playDiceRollAnimation(int finalNumber) async {
+    if (_diceRolling) return;
+    _diceRolling = true;
+    try {
+      // Small phase durations (ms) that accelerate then decelerate
+      const List<int> phases = [60, 60, 60, 60, 80, 100, 140, 200];
+      // Ensure starting from a visible number
+      if (_diceNumber == null) _diceNumber = 1;
+      for (final d in phases) {
+        await Future.delayed(Duration(milliseconds: d));
+        if (!mounted) return;
+        setState(() { _diceNumber = (_diceNumber! % 6) + 1; });
+      }
+      // small pause then snap to final
+      await Future.delayed(const Duration(milliseconds: 160));
+      if (!mounted) return;
+      setState(() { _diceNumber = finalNumber.clamp(1, 6); });
+
+      // Scale pop animation to emphasize final face
+      try {
+        _diceController.reset();
+        await _diceController.forward();
+        await Future.delayed(const Duration(milliseconds: 260));
+        await _diceController.reverse();
+      } catch (_) {}
+    } finally {
+      _diceRolling = false;
     }
   }
 }

@@ -591,8 +591,13 @@ class GameController extends ChangeNotifier {
           });
         }
 
-        _cancelWaitingForMoveWatch();
-        waitingForMove = false;
+        // Keep the waiting watchdog active so clients that simulated locally
+        // will still reconcile with the server if a MoveCompleted arrives
+        // elsewhere or the background persist fails. Previously we cancelled
+        // the watch which could leave the client frozen with a local-only
+        // simulated state.
+        waitingForMove = true;
+        _startWaitingForMoveWatch();
         notifyListeners();
 
         if (persisted) {
