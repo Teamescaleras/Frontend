@@ -13,7 +13,10 @@ class MoveService {
   }
 
   Future<ProfesorQuestionDto> getProfesor(String gameId) async {
-    final resp = await _client.postJson('/api/Moves/get-profesor', {'gameId': gameId});
+    final int? gid = int.tryParse(gameId);
+    final body = <String, dynamic>{};
+    body['gameId'] = gid ?? gameId;
+    final resp = await _client.postJson('/api/Moves/get-profesor', body);
     try {
       if (resp is Map) {
         developer.log('MoveService.getProfesor raw response: ${resp.toString()}', name: 'MoveService');
@@ -28,13 +31,21 @@ class MoveService {
   }
 
   Future<MoveResultDto> answerProfesor(String gameId, String questionId, String answer) async {
-    final resp = await _client.postJson('/api/Moves/answer-profesor', {'gameId': gameId, 'questionId': questionId, 'answer': answer});
+    // Ensure gameId is sent as integer when possible (OpenAPI expects integer)
+    final int? gid = int.tryParse(gameId);
+    final body = <String, dynamic>{'answer': answer};
+    if (gid != null) body['gameId'] = gid; else body['gameId'] = gameId;
+    // Include questionId only as extra info; backend primarily needs gameId+answer
+    if (questionId.isNotEmpty) {
+      body['questionId'] = questionId;
+      body['profesorQuestionId'] = questionId;
+    }
+    final resp = await _client.postJson('/api/Moves/answer-profesor', body);
     // Accept a few shapes for the response to be tolerant with different backends
     try {
       if (resp is Map) {
-        // Common case: resp is directly the move result
-        if (resp.containsKey('dice') || resp.containsKey('newPosition') || resp.containsKey('MoveResult') || resp.containsKey('moveResult')) {
-          // If nested under 'MoveResult' or 'moveResult', extract it
+        // Common case: resp is directly the move result (with diceValue/finalPosition)
+        if (resp.containsKey('diceValue') || resp.containsKey('finalPosition') || resp.containsKey('toPosition') || resp.containsKey('profesorQuestion')) {
           if ((resp['MoveResult'] is Map) || (resp['moveResult'] is Map)) {
             final inner = Map<String, dynamic>.from(resp['MoveResult'] ?? resp['moveResult']);
             return MoveResultDto.fromJson(inner);
