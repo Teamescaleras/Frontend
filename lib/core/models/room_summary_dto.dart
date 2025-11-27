@@ -84,7 +84,7 @@ class RoomSummaryDto {
     );
   }
 
-  // ========= TO JSON (por si lo necesitas) =========
+  // ========= TO JSON (por si lo necesitas) =========cambio
   Map<String, dynamic> toJson() {
     return {
       'id': id,
